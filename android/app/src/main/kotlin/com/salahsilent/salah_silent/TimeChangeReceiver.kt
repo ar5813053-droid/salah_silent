@@ -5,9 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 
-/**
- * Recalculates all prayer alarms when the user or system changes clock / timezone / date.
- */
 class TimeChangeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
@@ -18,13 +15,13 @@ class TimeChangeReceiver : BroadcastReceiver() {
             return
         }
 
-        Log.i(TAG, "Time/timezone/date change: $action — recalculating alarms")
+        Log.i(TAG, "Time/timezone/date change: $action")
         val pendingResult = goAsync()
         try {
-            // Cancel + reschedule from saved configs with new local calendar
-            AlarmScheduler.cancelAll(context.applicationContext)
-            val status = AlarmScheduler.restoreFromPrefs(context.applicationContext)
-            Log.i(TAG, "Recalculation complete: $status")
+            val app = context.applicationContext
+            AlarmScheduler.cancelAll(app)
+            AlarmScheduler.restoreFromPrefs(app)
+            SilentSessionManager.getInstance(app).recoverAfterBoot()
         } catch (e: Exception) {
             Log.e(TAG, "Recalculation failed: ${e.message}", e)
         } finally {

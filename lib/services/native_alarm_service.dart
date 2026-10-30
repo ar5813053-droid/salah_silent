@@ -60,9 +60,77 @@ class NativeAlarmService {
               'hour': s.hour,
               'minute': s.minute,
               'enabled': s.enabled,
+              'durationMinutes': s.durationMinutes,
             })
         .toList();
   }
+
+  Future<Map<String, dynamic>> startSilentSession({
+    required String prayerName,
+    required int durationMinutes,
+  }) async {
+    try {
+      final result = await _method.invokeMethod('startSilentSession', {
+        'prayerName': prayerName,
+        'durationMinutes': durationMinutes,
+      });
+      return Map<String, dynamic>.from(result as Map);
+    } on PlatformException catch (e) {
+      return {'ok': false, 'error': e.message};
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelSilentSession() async {
+    try {
+      final result = await _method.invokeMethod('cancelSilentSession');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      return {'ok': false, 'error': e.message};
+    }
+  }
+
+  Future<Map<String, dynamic>> getSilentSessionStatus() async {
+    try {
+      final result = await _method.invokeMethod('getSilentSessionStatus');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      return {'active': false, 'error': e.message};
+    }
+  }
+
+  Future<bool> isSilentModeActive() async {
+    try {
+      return await _method.invokeMethod<bool>('isSilentModeActive') ?? false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  Future<bool> checkNotificationPolicyAccess() async {
+    try {
+      return await _method.invokeMethod<bool>('checkNotificationPolicyAccess') ?? false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  Future<void> openNotificationPolicySettings() async {
+    try {
+      await _method.invokeMethod('openNotificationPolicySettings');
+    } on PlatformException catch (e) {
+      debugPrint('[SalahSilent/Silent] openNotificationPolicySettings: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> reconcileSilentSession() async {
+    try {
+      final result = await _method.invokeMethod('reconcileSilentSession');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      return {'ok': false, 'error': e.message};
+    }
+  }
+
 
   Future<Map<String, dynamic>> scheduleAll(List<PrayerSchedule> schedules) async {
     try {
@@ -93,6 +161,7 @@ class NativeAlarmService {
         'hour': s.hour,
         'minute': s.minute,
         'enabled': s.enabled,
+        'durationMinutes': s.durationMinutes,
       });
       return Map<String, dynamic>.from(result as Map);
     } on PlatformException catch (e) {

@@ -52,6 +52,7 @@ object AlarmScheduler {
         val hour: Int,
         val minute: Int,
         val enabled: Boolean,
+        val durationMinutes: Int = 10,
     )
 
     private fun prefs(context: Context): SharedPreferences =
@@ -303,9 +304,14 @@ object AlarmScheduler {
                 put("hour", c.hour)
                 put("minute", c.minute)
                 put("enabled", c.enabled)
+                put("durationMinutes", c.durationMinutes)
             })
         }
         prefs(context).edit().putString(KEY_SCHEDULES_JSON, arr.toString()).apply()
+    }
+
+    fun durationFor(context: Context, prayerName: String): Int {
+        return loadConfigs(context).firstOrNull { it.prayerName == prayerName }?.durationMinutes ?: 10
     }
 
     fun loadConfigs(context: Context): List<PrayerAlarmConfig> {
@@ -321,6 +327,7 @@ object AlarmScheduler {
                         hour = o.getInt("hour"),
                         minute = o.getInt("minute"),
                         enabled = o.getBoolean("enabled"),
+                        durationMinutes = o.optInt("durationMinutes", 10),
                     )
                 )
             }

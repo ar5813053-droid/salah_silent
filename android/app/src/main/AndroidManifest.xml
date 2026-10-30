@@ -64,6 +64,15 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".SilentSessionEndReceiver"
+            android:exported="false"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="com.salahsilent.salah_silent.ACTION_END_SESSION"/>
+            </intent-filter>
+        </receiver>
+
         <!-- Keep legacy AlarmReceiver registered as no-op for safety if referenced -->
         <receiver
             android:name=".AlarmReceiver"

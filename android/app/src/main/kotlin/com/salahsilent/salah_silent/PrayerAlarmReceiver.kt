@@ -6,43 +6,50 @@ import android.content.Intent
 import android.util.Log
 
 /**
- * Receives exact prayer alarms. Milestone 2: identify Salah, log, reschedule next day.
- * Milestone 3 will activate silent mode from here.
+ * Prayer start alarm: reschedule next day + start silent session for configured duration.
  */
 class PrayerAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != AlarmScheduler.ACTION_PRAYER_ALARM) return
 
         val prayerName = intent.getStringExtra(AlarmScheduler.EXTRA_PRAYER_NAME) ?: return
-        val hour = intent.getIntExtra(AlarmScheduler.EXTRA_HOUR, -1)
-        val minute = intent.getIntExtra(AlarmScheduler.EXTRA_MINUTE, -1)
+        var hour = intent.getIntExtra(AlarmScheduler.EXTRA_HOUR, -1)
+        var minute = intent.getIntExtra(AlarmScheduler.EXTRA_MINUTE, -1)
 
-        Log.i(TAG, "Prayer alarm received: $prayerName hour=$hour minute=$minute")
+        Log.i(TAG, "Prayer alarm: $prayerName hour=$hour minute=$minute")
 
-        if (hour in 0..23 && minute in 0..59) {
-            AlarmScheduler.onAlarmFired(context.applicationContext, prayerName, hour, minute)
-        } else {
-            // Recover hour/minute from saved config
-            val cfg = AlarmScheduler.loadConfigs(context)
-                .firstOrNull { it.prayerName == prayerName }
-            if (cfg != null && cfg.enabled) {
-                AlarmScheduler.onAlarmFired(
-                    context.applicationContext,
-                    cfg.prayerName,
-                    cfg.hour,
-                    cfg.minute,
-                )
-            }
+        val app = context.applicationContext
+        val cfg = AlarmScheduler.loadConfigs(app).firstOrNull { it.prayerName == prayerName }
+        if (hour !in 0..23 || minute !in 0..59) {
+            hour = cfg?.hour ?: return
+            minute = cfg.minute
         }
 
-        // Notify Flutter if engine is alive (no-op if app is background-killed)
-        MainActivity.emitAlarmEvent(
-            mapOf(
-                "type" to "prayer_alarm",
-                "prayerName" to prayerName,
-                "triggeredAtEpochMillis" to System.currentTimeMillis(),
+        // Always reschedule next occurrence for enabled prayers
+        if (cfg == null || cfg.enabled) {
+            AlarmScheduler.onAlarmFired(app, prayerName, hour, minute)
+        }
+
+        val duration = cfg?.durationMinutes
+            ?: AlarmScheduler.durationFor(app, prayerName)
+
+        val pending = goAsync()
+        try {
+            val result = SilentSessionManager.getInstance(app).startSession(prayerName, duration)
+            Log.i(TAG, "Silent session result: $result")
+            MainActivity.emitAlarmEvent(
+                mapOf(
+                    "type" to "prayer_alarm",
+                    "prayerName" to prayerName,
+                    "triggeredAtEpochMillis" to System.currentTimeMillis(),
+                    "silentSession" to result,
+                )
             )
-        )
+        } catch (e: Exception) {
+            Log.e(TAG, "startSession failed: ${e.message}", e)
+        } finally {
+            pending.finish()
+        }
     }
 
     companion object {

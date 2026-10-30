@@ -235,6 +235,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: AppColors.mutedGrey, fontSize: 12, height: 1.4),
             ),
           ],
+
+          const SizedBox(height: 16),
+          Text(
+            'Silent mode access',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.softGold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          FutureBuilder<bool>(
+            future: NativeAlarmService.instance.checkNotificationPolicyAccess(),
+            builder: (context, snap) {
+              final granted = snap.data == true;
+              return Card(
+                child: ListTile(
+                  title: const Text('Do Not Disturb access'),
+                  subtitle: Text(
+                    granted
+                        ? 'Granted — ringer silent mode can be applied'
+                        : 'Required on many devices for reliable silence',
+                    style: TextStyle(
+                      color: granted ? AppColors.mutedGrey : Colors.orangeAccent,
+                    ),
+                  ),
+                  trailing: granted
+                      ? const Icon(Icons.check_circle, color: AppColors.softGold)
+                      : TextButton(
+                          onPressed: () async {
+                            await NativeAlarmService.instance
+                                .openNotificationPolicySettings();
+                          },
+                          child: const Text('Grant'),
+                        ),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 24),
           Text(
             'Schedule',
@@ -283,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               title: Text('Salah Silent'),
               subtitle: Text(
-                'Milestone 2 · Exact alarm scheduling + boot recovery\n'
+                'Milestone 3 · Silent mode + safe restoration\n'
                 'Silent mode activation arrives in Milestone 3.',
                 style: TextStyle(color: AppColors.mutedGrey, height: 1.4),
               ),

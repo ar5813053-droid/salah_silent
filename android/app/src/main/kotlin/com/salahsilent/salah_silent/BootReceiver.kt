@@ -6,11 +6,9 @@ import android.content.Intent
 import android.util.Log
 
 /**
- * After reboot or app update, restore all enabled Salah exact alarms
- * without requiring the Flutter UI to be open.
- *
- * Limitation: if the user force-stops the app, Android may not deliver
- * BOOT_COMPLETED until the user opens the app again.
+ * After reboot or app update:
+ * 1) Restore prayer alarms from SharedPreferences
+ * 2) Reconcile any active silent session
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
@@ -25,8 +23,11 @@ class BootReceiver : BroadcastReceiver() {
         Log.i(TAG, "Boot/update recovery action=$action")
         val pendingResult = goAsync()
         try {
-            val status = AlarmScheduler.restoreFromPrefs(context.applicationContext)
-            Log.i(TAG, "Restore complete: $status")
+            val app = context.applicationContext
+            val alarmStatus = AlarmScheduler.restoreFromPrefs(app)
+            Log.i(TAG, "Alarms restored: $alarmStatus")
+            val sessionStatus = SilentSessionManager.getInstance(app).recoverAfterBoot()
+            Log.i(TAG, "Session recovered: $sessionStatus")
         } catch (e: Exception) {
             Log.e(TAG, "Restore failed: ${e.message}", e)
         } finally {

@@ -8,7 +8,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'salah_silent.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
 
   Database? _db;
 
@@ -31,8 +31,20 @@ class AppDatabase {
   }
 
   Future<void> _onCreate(Database db, int version) async {
+    await _createPrayerSchedules(db);
+    await _createSilentSessions(db);
+    await _seedPrayers(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createSilentSessions(db);
+    }
+  }
+
+  Future<void> _createPrayerSchedules(Database db) async {
     await db.execute('''
-      CREATE TABLE prayer_schedules (
+      CREATE TABLE IF NOT EXISTS prayer_schedules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         prayer_name TEXT UNIQUE NOT NULL,
         hour INTEGER NOT NULL,
@@ -42,13 +54,32 @@ class AppDatabase {
         updated_at INTEGER NOT NULL
       )
     ''');
-
     await db.execute('''
-      CREATE INDEX idx_prayer_schedules_name
+      CREATE INDEX IF NOT EXISTS idx_prayer_schedules_name
       ON prayer_schedules (prayer_name)
     ''');
+  }
 
-    // Seed example defaults (clearly example times, not real local times).
+  Future<void> _createSilentSessions(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS silent_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_uuid TEXT,
+        prayer_name TEXT NOT NULL,
+        start_epoch INTEGER NOT NULL,
+        end_epoch INTEGER NOT NULL,
+        previous_ringer_mode INTEGER,
+        previous_dnd_filter INTEGER,
+        applied_ringer_mode INTEGER,
+        session_status TEXT NOT NULL,
+        restoration_status TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _seedPrayers(Database db) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final batch = db.batch();
     for (final name in PrayerSchedule.orderedNames) {
@@ -63,12 +94,6 @@ class AppDatabase {
       });
     }
     await batch.commit(noResult: true);
-  }
-
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Future migrations go here.
-    // Example:
-    // if (oldVersion < 2) { await db.execute('ALTER TABLE ...'); }
   }
 
   Future<void> close() async {

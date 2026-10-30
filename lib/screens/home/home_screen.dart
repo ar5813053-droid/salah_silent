@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
+import '../../services/native_alarm_service.dart';
 import '../../services/prayer_schedule_service.dart';
 import '../schedule/schedule_screen.dart';
 
@@ -20,6 +21,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _ticker;
   String _nativeStatus = '';
   Duration? _remaining;
+  Map<String, dynamic> _session = {};
+  StreamSubscription? _eventSub;
 
   @override
   void initState() {
@@ -27,13 +30,40 @@ class _HomeScreenState extends State<HomeScreen> {
     _service = PrayerScheduleController.instance;
     _service.addListener(_onServiceUpdate);
     _pingNative();
+    _refreshSession();
     _remaining = _service.remainingUntilNext();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() {
         _remaining = _service.remainingUntilNext();
+        if (_session['active'] == true) {
+          final end = _session['endEpoch'];
+          if (end is int) {
+            final left = end - DateTime.now().millisecondsSinceEpoch;
+            _session = Map<String, dynamic>.from(_session)
+              ..['remainingMillis'] = left.clamp(0, 1 << 62);
+            if (left <= 0) {
+              _refreshSession();
+            }
+          }
+        }
       });
     });
+    _eventSub = NativeAlarmService.instance.onAlarmFired.listen((event) {
+      final type = event['type'];
+      if (type == 'silent_activated' ||
+          type == 'session_extended' ||
+          type == 'silent_restored' ||
+          type == 'restoration_skipped' ||
+          type == 'prayer_alarm') {
+        _refreshSession();
+      }
+    });
+  }
+
+  Future<void> _refreshSession() async {
+    final status = await NativeAlarmService.instance.getSilentSessionStatus();
+    if (mounted) setState(() => _session = status);
   }
 
   void _onServiceUpdate() {
@@ -49,7 +79,45 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) setState(() => _nativeStatus = result.toString());
     } catch (_) {
       if (mounted) {
-        setState(() => _nativeStatus = 'Native bridge OK (stub)');
+        setState(() => _nativeStatus = 'Native bridge OK');
+      }
+    }
+  }
+
+  Future<void> _confirmRestore() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardDark,
+        title: const Text('Restore sound now?'),
+        content: const Text(
+          'This ends the active silent session and restores the previous '
+          'sound state if it is still safe to do so.',
+          style: TextStyle(color: AppColors.mutedGrey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.softGold),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await NativeAlarmService.instance.cancelSilentSession();
+      await _refreshSession();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Silent session ended'),
+            backgroundColor: AppColors.surface,
+          ),
+        );
       }
     }
   }
@@ -57,6 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _eventSub?.cancel();
     _service.removeListener(_onServiceUpdate);
     super.dispose();
   }
@@ -71,10 +140,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return '$h:$m:$s';
   }
 
+  String _formatMillis(dynamic ms) {
+    if (ms is! int) return '00:00';
+    final total = (ms ~/ 1000).clamp(0, 86400);
+    final m = (total ~/ 60).toString().padLeft(2, '0');
+    final s = (total % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateStr = DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
     final next = _service.nextPrayer;
+    final silentActive = _session['active'] == true;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Salah Silent')),
@@ -84,113 +162,187 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           : RefreshIndicator(
               color: AppColors.softGold,
-              onRefresh: () => _service.init(),
+              onRefresh: () async {
+                await _service.init();
+                await _refreshSession();
+              },
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  Text(
-                    dateStr,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
+                  Text(dateStr, style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 16),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: next == null
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'No upcoming Salah',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(color: AppColors.softGold),
+
+                  if (silentActive) ...[
+                    Card(
+                      color: AppColors.cardDark,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: const BorderSide(
+                          color: AppColors.softGold,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'SILENT MODE ACTIVE',
+                              style: TextStyle(
+                                color: AppColors.softGold,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${_session['prayerName'] ?? 'Salah'}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(color: AppColors.white),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _formatMillis(_session['remainingMillis']),
+                              style: const TextStyle(
+                                color: AppColors.white,
+                                fontSize: 40,
+                                fontWeight: FontWeight.w300,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            const Text(
+                              'remaining',
+                              style: TextStyle(
+                                color: AppColors.mutedGrey,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (_session['endEpoch'] is int)
+                              Text(
+                                'Restores ~ ${DateFormat('h:mm a').format(DateTime.fromMillisecondsSinceEpoch(_session['endEpoch'] as int))}',
+                                style: const TextStyle(
+                                  color: AppColors.mutedGrey,
+                                  fontSize: 13,
                                 ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Enable at least one prayer in Schedule.',
-                                  style: TextStyle(color: AppColors.mutedGrey),
+                              ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _confirmRestore,
+                                icon: const Icon(Icons.volume_up_outlined),
+                                label: const Text('Restore Sound Now'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.softGold,
+                                  side: const BorderSide(color: AppColors.softGold),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
                                 ),
-                              ],
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Next Salah',
-                                  style: TextStyle(
-                                    color: AppColors.mutedGrey,
-                                    fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ] else ...[
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: next == null
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'No upcoming Salah',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(color: AppColors.softGold),
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      next.schedule.prayerName,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .headlineMedium
-                                          ?.copyWith(
-                                            color: AppColors.softGold,
-                                          ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Enable at least one prayer in Schedule.',
+                                    style: TextStyle(color: AppColors.mutedGrey),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Next Salah',
+                                    style: TextStyle(
+                                      color: AppColors.mutedGrey,
+                                      fontSize: 13,
                                     ),
-                                    const SizedBox(width: 12),
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
-                                      child: Text(
-                                        next.schedule.formattedTime,
-                                        style: const TextStyle(
-                                          color: AppColors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w500,
-                                        ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        next.schedule.prayerName,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineMedium
+                                            ?.copyWith(
+                                              color: AppColors.softGold,
+                                            ),
                                       ),
-                                    ),
-                                    if (next.isTomorrow)
-                                      const Padding(
-                                        padding: EdgeInsets.only(
-                                          left: 8,
-                                          bottom: 6,
-                                        ),
+                                      const SizedBox(width: 12),
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
                                         child: Text(
-                                          'tomorrow',
-                                          style: TextStyle(
-                                            color: AppColors.mutedGrey,
-                                            fontSize: 12,
+                                          next.schedule.formattedTime,
+                                          style: const TextStyle(
+                                            color: AppColors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _formatCountdown(_remaining),
-                                  style: const TextStyle(
-                                    color: AppColors.white,
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.w300,
-                                    letterSpacing: 2,
-                                    fontFeatures: [
-                                      FontFeature.tabularFigures(),
+                                      if (next.isTomorrow)
+                                        const Padding(
+                                          padding: EdgeInsets.only(left: 8, bottom: 6),
+                                          child: Text(
+                                            'tomorrow',
+                                            style: TextStyle(
+                                              color: AppColors.mutedGrey,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Silent for ${next.schedule.durationLabel}',
-                                  style: const TextStyle(
-                                    color: AppColors.mutedGrey,
-                                    fontSize: 13,
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _formatCountdown(_remaining),
+                                    style: const TextStyle(
+                                      color: AppColors.white,
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.w300,
+                                      letterSpacing: 2,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Silent for ${next.schedule.durationLabel}',
+                                    style: const TextStyle(
+                                      color: AppColors.mutedGrey,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
+                  ],
+
                   Text(
                     "Today's schedule",
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -241,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Text(
                               s.enabled ? s.durationLabel : 'Off',
                               textAlign: TextAlign.end,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: AppColors.mutedGrey,
                                 fontSize: 12,
                               ),
