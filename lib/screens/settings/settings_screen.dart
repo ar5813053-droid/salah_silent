@@ -5,6 +5,7 @@ import '../../services/native_alarm_service.dart';
 import '../../services/prayer_schedule_service.dart';
 import '../../widgets/duration_selector.dart';
 import '../schedule/schedule_screen.dart';
+import '../permission_setup/permission_setup_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -134,6 +135,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.security_outlined, color: AppColors.softGold),
+              title: const Text('Permissions & Reliability'),
+              subtitle: const Text(
+                'Exact alarms, DND, notification access, battery',
+                style: TextStyle(color: AppColors.mutedGrey, fontSize: 12),
+              ),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.mutedGrey),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PermissionSetupScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
           Text(
             'Alarm scheduling',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -320,7 +341,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               title: Text('Salah Silent'),
               subtitle: Text(
-                'Milestone 3 · Silent mode + safe restoration\n'
+                'Milestone 4 · Permissions & background reliability\n'
                 'Silent mode activation arrives in Milestone 3.',
                 style: TextStyle(color: AppColors.mutedGrey, height: 1.4),
               ),

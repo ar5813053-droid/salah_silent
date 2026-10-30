@@ -192,4 +192,68 @@ class NativeAlarmService {
   Future<Map<String, dynamic>> refresh(List<PrayerSchedule> schedules) {
     return scheduleAll(schedules);
   }
+
+
+  Future<Map<String, dynamic>> getPermissionStatuses() async {
+    try {
+      final result = await _method.invokeMethod('getPermissionStatuses');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      debugPrint('[SalahSilent/Permissions] getPermissionStatuses: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> openNotificationListenerSettings() async {
+    try {
+      final result = await _method.invokeMethod('openNotificationListenerSettings');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      return {'opened': false, 'error': e.message};
+    }
+  }
+
+  Future<Map<String, dynamic>> openAppNotificationSettings() async {
+    try {
+      final result = await _method.invokeMethod('openAppNotificationSettings');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      return {'opened': false, 'error': e.message};
+    }
+  }
+
+  Future<Map<String, dynamic>> openBatterySettings() async {
+    try {
+      final result = await _method.invokeMethod('openBatterySettings');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      return {'opened': false, 'error': e.message};
+    }
+  }
+
+  Future<Map<String, dynamic>> openAppDetailsSettings() async {
+    try {
+      final result = await _method.invokeMethod('openAppDetailsSettings');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      return {'opened': false, 'error': e.message};
+    }
+  }
+
+  Future<Map<String, dynamic>> getDeviceManufacturerInfo() async {
+    try {
+      final result = await _method.invokeMethod('getDeviceManufacturerInfo');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException catch (e) {
+      return {'error': e.message};
+    }
+  }
+
+  Future<Map<String, dynamic>> getReadinessSummary() async {
+    final all = await getPermissionStatuses();
+    final r = all['readiness'];
+    if (r is Map) return Map<String, dynamic>.from(r);
+    return {};
+  }
+
 }

@@ -28,8 +28,7 @@ class MainActivity : FlutterActivity() {
                     "canScheduleExactAlarms" ->
                         result.success(AlarmScheduler.canScheduleExactAlarms(this))
                     "openExactAlarmSettings" -> {
-                        AlarmScheduler.openExactAlarmSettings(this)
-                        result.success(null)
+                        result.success(PermissionStatusHelper.openExactAlarmSettings(this))
                     }
                     "scheduleAllPrayers" -> {
                         val configs = parseConfigs(call.arguments as? List<*>)
@@ -83,13 +82,26 @@ class MainActivity : FlutterActivity() {
                     "checkNotificationPolicyAccess" ->
                         result.success(mgr.hasNotificationPolicyAccess())
                     "openNotificationPolicySettings" -> {
-                        mgr.openNotificationPolicySettings()
-                        result.success(null)
+                        result.success(PermissionStatusHelper.openNotificationPolicySettings(this))
                     }
                     "getPreviousSoundState" ->
                         result.success(mgr.getPreviousSoundState())
                     "reconcileSilentSession" ->
                         result.success(mgr.reconcileSilentSession())
+                    "getPermissionStatuses" ->
+                        result.success(PermissionStatusHelper.getAllStatuses(this))
+                    "openNotificationListenerSettings" ->
+                        result.success(PermissionStatusHelper.openNotificationListenerSettings(this))
+                    "openAppNotificationSettings" ->
+                        result.success(PermissionStatusHelper.openAppNotificationSettings(this))
+                    "openBatterySettings" ->
+                        result.success(PermissionStatusHelper.openBatterySettings(this))
+                    "openAppDetailsSettings" ->
+                        result.success(PermissionStatusHelper.openAppDetails(this))
+                    "checkBatteryOptimizationStatus" ->
+                        result.success(PermissionStatusHelper.batteryOptimizationStatus(this))
+                    "getDeviceManufacturerInfo" ->
+                        result.success(PermissionStatusHelper.deviceInfo())
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {

@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../services/native_alarm_service.dart';
 import '../../services/prayer_schedule_service.dart';
 import '../schedule/schedule_screen.dart';
+import '../permission_setup/permission_setup_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _nativeStatus = '';
   Duration? _remaining;
   Map<String, dynamic> _session = {};
+  Map<String, dynamic> _readiness = {};
   StreamSubscription? _eventSub;
 
   @override
@@ -63,7 +65,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refreshSession() async {
     final status = await NativeAlarmService.instance.getSilentSessionStatus();
-    if (mounted) setState(() => _session = status);
+    final ready = await NativeAlarmService.instance.getReadinessSummary();
+    if (mounted) {
+      setState(() {
+        _session = status;
+        _readiness = ready;
+      });
+    }
   }
 
   void _onServiceUpdate() {
@@ -170,7 +178,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   Text(dateStr, style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+
+                  _PermissionBanner(readiness: _readiness),
+                  const SizedBox(height: 12),
+
 
                   if (silentActive) ...[
                     Card(
