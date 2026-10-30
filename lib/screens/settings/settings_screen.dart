@@ -351,7 +351,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               title: Text('Salah Silent'),
               subtitle: Text(
-                'Milestone 5 · Notifications, Jumu'ah & call history\n'
+                'Milestone 5 · Notifications, Jumuah and call history\n'
                 'Silent mode activation arrives in Milestone 3.',
                 style: TextStyle(color: AppColors.mutedGrey, height: 1.4),
               ),
