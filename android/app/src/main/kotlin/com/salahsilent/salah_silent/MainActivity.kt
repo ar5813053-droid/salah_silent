@@ -1,27 +1,135 @@
 package com.salahsilent.salah_silent
 
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.salahsilent.app/native"
+    private val methodChannelName = "com.salahsilent.app/native"
+    private val eventChannelName = "com.salahsilent.app/alarm_events"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-            .setMethodCallHandler { call, result ->
+        methodChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            methodChannelName,
+        )
+        methodChannel?.setMethodCallHandler { call, result ->
+            try {
                 when (call.method) {
                     "getPlatformVersion" -> {
                         result.success("Android ${android.os.Build.VERSION.RELEASE}")
                     }
                     "pingSilentSessionManager" -> {
-                        // Placeholder – real SilentSessionManager arrives in Milestone 3
                         result.success("SilentSessionManager ready (stub)")
+                    }
+                    "canScheduleExactAlarms" -> {
+                        result.success(AlarmScheduler.canScheduleExactAlarms(this))
+                    }
+                    "openExactAlarmSettings" -> {
+                        AlarmScheduler.openExactAlarmSettings(this)
+                        result.success(null)
+                    }
+                    "scheduleAllPrayers" -> {
+                        val list = call.arguments as? List<*>
+                        val configs = parseConfigs(list)
+                        val status = AlarmScheduler.scheduleAll(this, configs)
+                        result.success(status)
+                    }
+                    "cancelAllPrayers" -> {
+                        result.success(AlarmScheduler.cancelAll(this))
+                    }
+                    "updatePrayerAlarm" -> {
+                        val map = call.arguments as? Map<*, *>
+                        if (map == null) {
+                            result.error("bad_args", "Expected map", null)
+                            return@setMethodCallHandler
+                        }
+                        val cfg = AlarmScheduler.PrayerAlarmConfig(
+                            prayerName = map["prayerName"] as String,
+                            hour = (map["hour"] as Number).toInt(),
+                            minute = (map["minute"] as Number).toInt(),
+                            enabled = map["enabled"] as Boolean,
+                        )
+                        result.success(AlarmScheduler.updateOne(this, cfg))
+                    }
+                    "getSchedulingStatus" -> {
+                        result.success(AlarmScheduler.getStatus(this))
+                    }
+                    "getNextScheduledAlarm" -> {
+                        result.success(AlarmScheduler.getNextScheduled(this))
+                    }
+                    "refreshAlarmsFromFlutter" -> {
+                        // Same as scheduleAllPrayers — explicit alias
+                        val list = call.arguments as? List<*>
+                        val configs = parseConfigs(list)
+                        result.success(AlarmScheduler.scheduleAll(this, configs))
                     }
                     else -> result.notImplemented()
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "MethodChannel error ${call.method}: ${e.message}", e)
+                result.error("alarm_error", e.message, null)
             }
+        }
+
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            eventChannelName,
+        ).setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                eventSink = events
+            }
+
+            override fun onCancel(arguments: Any?) {
+                eventSink = null
+            }
+        })
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) {
+            methodChannel = null
+            eventSink = null
+        }
+        super.onDestroy()
+    }
+
+    private fun parseConfigs(list: List<*>?): List<AlarmScheduler.PrayerAlarmConfig> {
+        if (list == null) return emptyList()
+        return list.mapNotNull { item ->
+            val map = item as? Map<*, *> ?: return@mapNotNull null
+            val name = map["prayerName"] as? String ?: return@mapNotNull null
+            val hour = (map["hour"] as? Number)?.toInt() ?: return@mapNotNull null
+            val minute = (map["minute"] as? Number)?.toInt() ?: return@mapNotNull null
+            val enabled = map["enabled"] as? Boolean ?: true
+            AlarmScheduler.PrayerAlarmConfig(
+                prayerName = name,
+                hour = hour.coerceIn(0, 23),
+                minute = minute.coerceIn(0, 59),
+                enabled = enabled,
+            )
+        }
+    }
+
+    companion object {
+        private const val TAG = "SalahSilent/Alarm"
+
+        @Volatile
+        private var methodChannel: MethodChannel? = null
+
+        @Volatile
+        private var eventSink: EventChannel.EventSink? = null
+
+        fun emitAlarmEvent(payload: Map<String, Any?>) {
+            try {
+                eventSink?.success(payload)
+            } catch (e: Exception) {
+                Log.w(TAG, "emitAlarmEvent failed: ${e.message}")
+            }
+        }
     }
 }

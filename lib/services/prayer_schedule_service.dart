@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/models/prayer_schedule.dart';
 import '../data/repositories/prayer_repository.dart';
+import 'native_alarm_service.dart';
 
 /// Application service: schedules + next-prayer logic + global default duration.
 class PrayerScheduleService extends ChangeNotifier {
@@ -34,6 +35,7 @@ class PrayerScheduleService extends ChangeNotifier {
           prefs.getInt(_prefsDefaultDurationKey) ?? defaultDurationFallback;
       _schedules = await _repository.getAll();
       _error = null;
+      await _syncNativeAlarms();
     } catch (e, st) {
       _error = 'Failed to load prayer schedules.';
       debugPrint('PrayerScheduleService.init error: $e\n$st');
@@ -80,11 +82,30 @@ class PrayerScheduleService extends ChangeNotifier {
     try {
       _schedules = await _repository.getAll();
       _error = null;
+      await _syncNativeAlarms();
     } catch (e) {
       _error = 'Failed to refresh schedules.';
       debugPrint('PrayerScheduleService._reload error: $e');
     }
     notifyListeners();
+  }
+
+  /// Push current SQLite schedules to native AlarmManager.
+  Future<Map<String, dynamic>> _syncNativeAlarms() async {
+    try {
+      return await NativeAlarmService.instance.refresh(_schedules);
+    } catch (e) {
+      debugPrint('[SalahSilent/Alarm] sync failed: $e');
+      return {};
+    }
+  }
+
+  /// Explicit refresh for Settings UI.
+  Future<Map<String, dynamic>> refreshNativeAlarms() async {
+    _schedules = await _repository.getAll();
+    final status = await _syncNativeAlarms();
+    notifyListeners();
+    return status;
   }
 
   int _validateDuration(int minutes) {

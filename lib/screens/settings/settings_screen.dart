@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme.dart';
+import '../../services/native_alarm_service.dart';
 import '../../services/prayer_schedule_service.dart';
 import '../../widgets/duration_selector.dart';
 import '../schedule/schedule_screen.dart';
@@ -13,16 +15,47 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late final PrayerScheduleService _service;
+  Map<String, dynamic> _alarmStatus = {};
+  bool _statusLoading = true;
 
   @override
   void initState() {
     super.initState();
     _service = PrayerScheduleController.instance;
     _service.addListener(_onUpdate);
+    _loadAlarmStatus();
   }
 
   void _onUpdate() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _loadAlarmStatus() async {
+    setState(() => _statusLoading = true);
+    final status = await NativeAlarmService.instance.getStatus();
+    if (mounted) {
+      setState(() {
+        _alarmStatus = status;
+        _statusLoading = false;
+      });
+    }
+  }
+
+  Future<void> _refreshAlarms() async {
+    setState(() => _statusLoading = true);
+    final status = await _service.refreshNativeAlarms();
+    if (mounted) {
+      setState(() {
+        _alarmStatus = status;
+        _statusLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Prayer alarms refreshed'),
+          backgroundColor: AppColors.surface,
+        ),
+      );
+    }
   }
 
   @override
@@ -67,6 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmed == true) {
       await _service.resetSchedules();
+      await _loadAlarmStatus();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -78,13 +112,130 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  String _formatEpoch(dynamic epoch) {
+    if (epoch == null) return '—';
+    final ms = epoch is int ? epoch : int.tryParse(epoch.toString());
+    if (ms == null || ms <= 0) return '—';
+    final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+    return DateFormat('EEE d MMM, h:mm a').format(dt);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final exactGranted = _alarmStatus['exactAlarmGranted'] == true;
+    final activeCount = _alarmStatus['activeAlarmCount'] ?? 0;
+    final nextName = _alarmStatus['nextPrayerName'];
+    final nextAt = _alarmStatus['nextTriggerEpochMillis'];
+    final lastRefresh = _alarmStatus['lastRefreshEpochMillis'];
+    final lastError = _alarmStatus['lastError'] as String?;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text(
+            'Alarm scheduling',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.softGold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  title: const Text('Exact alarm permission'),
+                  subtitle: Text(
+                    exactGranted
+                        ? 'Granted — exact alarms available'
+                        : 'Not granted — open Settings to allow Alarms & reminders',
+                    style: TextStyle(
+                      color: exactGranted
+                          ? AppColors.mutedGrey
+                          : Colors.orangeAccent,
+                    ),
+                  ),
+                  trailing: exactGranted
+                      ? const Icon(Icons.check_circle, color: AppColors.softGold)
+                      : TextButton(
+                          onPressed: () async {
+                            await NativeAlarmService.instance
+                                .openExactAlarmSettings();
+                            await Future.delayed(const Duration(seconds: 1));
+                            await _loadAlarmStatus();
+                          },
+                          child: const Text('Grant'),
+                        ),
+                ),
+                const Divider(height: 1, color: AppColors.surface),
+                ListTile(
+                  title: const Text('Active prayer alarms'),
+                  subtitle: Text(
+                    _statusLoading ? 'Loading…' : '$activeCount scheduled',
+                    style: const TextStyle(color: AppColors.mutedGrey),
+                  ),
+                ),
+                const Divider(height: 1, color: AppColors.surface),
+                ListTile(
+                  title: const Text('Next scheduled Salah'),
+                  subtitle: Text(
+                    nextName == null
+                        ? 'None (enable a prayer in Schedule)'
+                        : '$nextName · ${_formatEpoch(nextAt)}',
+                    style: const TextStyle(color: AppColors.mutedGrey),
+                  ),
+                ),
+                const Divider(height: 1, color: AppColors.surface),
+                ListTile(
+                  title: const Text('Last scheduling update'),
+                  subtitle: Text(
+                    _formatEpoch(lastRefresh),
+                    style: const TextStyle(color: AppColors.mutedGrey),
+                  ),
+                ),
+                if (lastError != null && lastError.isNotEmpty) ...[
+                  const Divider(height: 1, color: AppColors.surface),
+                  ListTile(
+                    title: const Text('Scheduling error'),
+                    subtitle: Text(
+                      lastError,
+                      style: const TextStyle(color: Colors.orangeAccent),
+                    ),
+                  ),
+                ],
+                const Divider(height: 1, color: AppColors.surface),
+                ListTile(
+                  title: const Text('Refresh prayer schedules'),
+                  subtitle: const Text(
+                    'Re-register all enabled alarms from saved times',
+                    style: TextStyle(color: AppColors.mutedGrey, fontSize: 12),
+                  ),
+                  trailing: _statusLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.softGold,
+                          ),
+                        )
+                      : const Icon(Icons.refresh, color: AppColors.softGold),
+                  onTap: _statusLoading ? null : _refreshAlarms,
+                ),
+              ],
+            ),
+          ),
+          if (!exactGranted) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Without exact alarm permission, Android may delay prayer '
+              'alarms by several minutes (inexact). Grant “Alarms & reminders” '
+              'in Special app access for reliable timing.',
+              style: TextStyle(color: AppColors.mutedGrey, fontSize: 12, height: 1.4),
+            ),
+          ],
+          const SizedBox(height: 24),
           Text(
             'Schedule',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -132,8 +283,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               title: Text('Salah Silent'),
               subtitle: Text(
-                'Milestone 1 · Prayer Schedule + SQLite\n'
-                'Times are user-configured examples only.',
+                'Milestone 2 · Exact alarm scheduling + boot recovery\n'
+                'Silent mode activation arrives in Milestone 3.',
                 style: TextStyle(color: AppColors.mutedGrey, height: 1.4),
               ),
             ),

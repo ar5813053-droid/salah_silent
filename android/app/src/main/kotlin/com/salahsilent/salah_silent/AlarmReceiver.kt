@@ -5,13 +5,11 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Handles exact start-silent and end-silent alarms.
- * Delegates all logic to SilentSessionManager.
- * Implementation in Milestone 3.
+ * Legacy stub kept for Manifest compatibility.
+ * Active prayer alarms use [PrayerAlarmReceiver].
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        // val action = intent?.action
-        // SilentSessionManager.getInstance(context).onAlarmTriggered(action, intent)
+        // no-op
     }
 }
