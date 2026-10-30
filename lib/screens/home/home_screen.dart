@@ -441,3 +441,66 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+class _PermissionBanner extends StatelessWidget {
+  final Map<String, dynamic> readiness;
+  const _PermissionBanner({required this.readiness});
+
+  @override
+  Widget build(BuildContext context) {
+    final level = readiness['level'] as String? ?? '';
+    if (level.isEmpty) return const SizedBox.shrink();
+
+    String text;
+    Color color;
+    if (level == 'ready') {
+      text = 'System Ready';
+      color = AppColors.softGold;
+    } else if (readiness['exactAlarmOk'] != true) {
+      text = 'Exact alarm permission required';
+      color = Colors.orangeAccent;
+    } else if (readiness['dndOk'] != true) {
+      text = 'Silent-mode access required';
+      color = Colors.orangeAccent;
+    } else if (readiness['listenerOk'] != true) {
+      text = 'Call history access unavailable';
+      color = AppColors.mutedGrey;
+    } else {
+      text = 'Background limits may affect reliability';
+      color = Colors.orangeAccent;
+    }
+
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const PermissionSetupScreen()),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                level == 'ready' ? Icons.verified_outlined : Icons.info_outline,
+                size: 18,
+                color: color,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(color: color, fontSize: 13),
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 18, color: AppColors.mutedGrey),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
