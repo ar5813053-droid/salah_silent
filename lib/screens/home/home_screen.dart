@@ -362,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                   ),
                   const SizedBox(height: 10),
-                  ..._service.schedules.map((s) {
+                  ..._service.schedulesForDay(DateTime.now()).map((s) {
                     final isNext = next != null &&
                         s.prayerName == next.schedule.prayerName;
                     return Container(

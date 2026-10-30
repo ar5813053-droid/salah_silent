@@ -329,6 +329,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+
+          const SizedBox(height: 24),
+          Text(
+            'Notification preferences',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.softGold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          const _NotificationPrefsCard(),
           const SizedBox(height: 24),
           Text(
             'About',
@@ -341,12 +351,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListTile(
               title: Text('Salah Silent'),
               subtitle: Text(
-                'Milestone 4 · Permissions & background reliability\n'
+                'Milestone 5 · Notifications, Jumu'ah & call history\n'
                 'Silent mode activation arrives in Milestone 3.',
                 style: TextStyle(color: AppColors.mutedGrey, height: 1.4),
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _NotificationPrefsCard extends StatefulWidget {
+  const _NotificationPrefsCard();
+
+  @override
+  State<_NotificationPrefsCard> createState() => _NotificationPrefsCardState();
+}
+
+class _NotificationPrefsCardState extends State<_NotificationPrefsCard> {
+  Map<String, dynamic> _prefs = {};
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final p = await NativeAlarmService.instance.getNotificationPrefs();
+    if (mounted) setState(() { _prefs = p; _loading = false; });
+  }
+
+  Future<void> _set(String key, bool value) async {
+    final next = {
+      'silentActivated': _prefs['silentActivated'] == true,
+      'callDuringSalah': _prefs['callDuringSalah'] == true,
+      'sessionRestore': _prefs['sessionRestore'] == true,
+      'permissionWarning': _prefs['permissionWarning'] == true,
+    };
+    next[key] = value;
+    final updated = await NativeAlarmService.instance.setNotificationPrefs(next);
+    if (mounted) setState(() => _prefs = updated);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Card(child: ListTile(title: Text('Loading…')));
+    }
+    Widget tile(String key, String title, String subtitle) {
+      return SwitchListTile(
+        title: Text(title),
+        subtitle: Text(subtitle, style: const TextStyle(color: AppColors.mutedGrey, fontSize: 12)),
+        value: _prefs[key] != false,
+        activeColor: AppColors.softGold,
+        onChanged: (v) => _set(key, v),
+      );
+    }
+    return Card(
+      child: Column(
+        children: [
+          tile('silentActivated', 'Silent activation', 'When a Salah silent session starts'),
+          const Divider(height: 1, color: AppColors.surface),
+          tile('callDuringSalah', 'Calls during Salah', 'When a call notification is detected'),
+          const Divider(height: 1, color: AppColors.surface),
+          tile('sessionRestore', 'Session restore', 'When sound is restored or restore is skipped'),
+          const Divider(height: 1, color: AppColors.surface),
+          tile('permissionWarning', 'Permission warnings', 'Occasional alerts if access is missing'),
         ],
       ),
     );

@@ -102,6 +102,24 @@ class MainActivity : FlutterActivity() {
                         result.success(PermissionStatusHelper.batteryOptimizationStatus(this))
                     "getDeviceManufacturerInfo" ->
                         result.success(PermissionStatusHelper.deviceInfo())
+                    "getNotificationPrefs" ->
+                        result.success(NotificationHelper.getAllPrefs(this))
+                    "setNotificationPrefs" -> {
+                        val map = call.arguments as? Map<*, *>
+                        if (map != null) NotificationHelper.setPrefs(this, map)
+                        result.success(NotificationHelper.getAllPrefs(this))
+                    }
+                    "getCallHistory" ->
+                        result.success(CallHistoryStore.list(this))
+                    "deleteCallHistoryItem" -> {
+                        val id = call.arguments as? String
+                        if (id != null) CallHistoryStore.delete(this, id)
+                        result.success(CallHistoryStore.list(this))
+                    }
+                    "clearCallHistory" -> {
+                        CallHistoryStore.clear(this)
+                        result.success(emptyList<Map<String, Any?>>())
+                    }
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
@@ -125,6 +143,7 @@ class MainActivity : FlutterActivity() {
 
         // Reconcile on engine attach (process may have been killed mid-session)
         try {
+            NotificationHelper.ensureChannels(this)
             SilentSessionManager.getInstance(this).recoverAfterBoot()
         } catch (e: Exception) {
             Log.w(TAG, "recover on engine: ${e.message}")

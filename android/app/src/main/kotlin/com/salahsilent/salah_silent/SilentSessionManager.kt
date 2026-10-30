@@ -212,6 +212,7 @@ class SilentSessionManager private constructor(private val appContext: Context) 
                 "previousRingerMode" to prevRinger,
             )
         )
+        NotificationHelper.notifySilentActivated(appContext, prayerName, durationMinutes)
         return statusMap(session, "started")
     }
 
@@ -347,6 +348,9 @@ class SilentSessionManager private constructor(private val appContext: Context) 
                         "manual" to manual,
                     )
                 )
+                if (!manual) {
+                    NotificationHelper.notifyRestored(appContext, session.prayerName)
+                }
                 return mapOf(
                     "ok" to true,
                     "active" to false,
@@ -374,6 +378,7 @@ class SilentSessionManager private constructor(private val appContext: Context) 
                     "appliedRingerMode" to session.appliedRingerMode,
                 )
             )
+            NotificationHelper.notifyRestoreSkipped(appContext, session.prayerName)
             return mapOf(
                 "ok" to true,
                 "active" to false,

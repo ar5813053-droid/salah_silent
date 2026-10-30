@@ -21,6 +21,7 @@ class PrayerSchedule {
   static const List<String> orderedNames = [
     'Fajr',
     'Dhuhr',
+    "Jumu'ah",
     'Asr',
     'Maghrib',
     'Isha',
@@ -30,10 +31,20 @@ class PrayerSchedule {
   static Map<String, (int hour, int minute)> get exampleDefaults => {
         'Fajr': (5, 15),
         'Dhuhr': (12, 30),
+        "Jumu'ah": (13, 0),
         'Asr': (15, 45),
         'Maghrib': (18, 10),
         'Isha': (19, 45),
       };
+
+  /// Names shown for a given calendar day (Jumu'ah replaces Dhuhr on Friday).
+  static List<String> namesForWeekday(int weekday) {
+    // DateTime.weekday: Mon=1 ... Fri=5 ... Sun=7
+    if (weekday == DateTime.friday) {
+      return ['Fajr', "Jumu'ah", 'Asr', 'Maghrib', 'Isha'];
+    }
+    return ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+  }
 
   TimeOfDayCompat get timeOfDay => TimeOfDayCompat(hour: hour, minute: minute);
 

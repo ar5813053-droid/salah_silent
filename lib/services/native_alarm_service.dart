@@ -256,4 +256,52 @@ class NativeAlarmService {
     return {};
   }
 
+
+  Future<List<Map<String, dynamic>>> getCallHistory() async {
+    try {
+      final result = await _method.invokeMethod('getCallHistory');
+      if (result is List) {
+        return result.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return [];
+    } on PlatformException catch (e) {
+      debugPrint('[SalahSilent/CallDetection] $e');
+      return [];
+    }
+  }
+
+  Future<void> deleteCallHistoryItem(String id) async {
+    try {
+      await _method.invokeMethod('deleteCallHistoryItem', id);
+    } on PlatformException catch (e) {
+      debugPrint('[SalahSilent/CallDetection] delete: $e');
+    }
+  }
+
+  Future<void> clearCallHistory() async {
+    try {
+      await _method.invokeMethod('clearCallHistory');
+    } on PlatformException catch (e) {
+      debugPrint('[SalahSilent/CallDetection] clear: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getNotificationPrefs() async {
+    try {
+      final result = await _method.invokeMethod('getNotificationPrefs');
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException {
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> setNotificationPrefs(Map<String, bool> prefs) async {
+    try {
+      final result = await _method.invokeMethod('setNotificationPrefs', prefs);
+      return Map<String, dynamic>.from(result as Map? ?? {});
+    } on PlatformException {
+      return {};
+    }
+  }
+
 }

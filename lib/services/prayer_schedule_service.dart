@@ -116,32 +116,33 @@ class PrayerScheduleService extends ChangeNotifier {
 
   // ─── Next prayer / countdown ───────────────────────────────────────────
 
-  /// Next enabled prayer occurrence (today or tomorrow).
+  /// Schedules relevant for a calendar day (Jumu'ah replaces Dhuhr on Friday).
+  List<PrayerSchedule> schedulesForDay(DateTime day) {
+    final names = PrayerSchedule.namesForWeekday(day.weekday);
+    return _schedules.where((s) => names.contains(s.prayerName)).toList();
+  }
+
+  /// Next enabled prayer occurrence (today or tomorrow), weekday-aware.
   NextPrayerInfo? get nextPrayer {
-    final enabled = _schedules.where((s) => s.enabled).toList();
-    if (enabled.isEmpty) return null;
-
     final now = DateTime.now();
-    final nowMinutes = now.hour * 60 + now.minute;
-
     PrayerSchedule? best;
     var bestAt = DateTime(2100);
 
-    for (final s in enabled) {
-      var candidate = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        s.hour,
-        s.minute,
-      );
-      // If time already passed today (or same minute already started), use tomorrow.
-      if (s.minutesFromMidnight <= nowMinutes) {
-        candidate = candidate.add(const Duration(days: 1));
+    for (var dayOffset = 0; dayOffset < 8; dayOffset++) {
+      final day = DateTime(now.year, now.month, now.day).add(Duration(days: dayOffset));
+      final names = PrayerSchedule.namesForWeekday(day.weekday);
+      for (final s in _schedules) {
+        if (!s.enabled) continue;
+        if (!names.contains(s.prayerName)) continue;
+        var candidate = DateTime(day.year, day.month, day.day, s.hour, s.minute);
+        if (candidate.isBefore(now) || candidate.isAtSameMomentAs(now)) continue;
+        if (candidate.isBefore(bestAt)) {
+          bestAt = candidate;
+          best = s;
+        }
       }
-      if (candidate.isBefore(bestAt)) {
-        bestAt = candidate;
-        best = s;
+      if (best != null && dayOffset == 0) {
+        // Found something today; still scan in case nothing — loop continues fine
       }
     }
 

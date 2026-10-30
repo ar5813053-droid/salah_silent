@@ -2,13 +2,12 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/prayer_schedule.dart';
 
-/// Local SQLite database with versioning and migrations.
 class AppDatabase {
   AppDatabase._();
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'salah_silent.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
 
   Database? _db;
 
@@ -21,7 +20,6 @@ class AppDatabase {
   Future<Database> _open() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, _dbName);
-
     return openDatabase(
       path,
       version: _dbVersion,
@@ -33,12 +31,17 @@ class AppDatabase {
   Future<void> _onCreate(Database db, int version) async {
     await _createPrayerSchedules(db);
     await _createSilentSessions(db);
+    await _createCallNotifications(db);
     await _seedPrayers(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _createSilentSessions(db);
+    }
+    if (oldVersion < 3) {
+      await _createCallNotifications(db);
+      await _ensureJumuah(db);
     }
   }
 
@@ -79,6 +82,20 @@ class AppDatabase {
     ''');
   }
 
+  Future<void> _createCallNotifications(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS call_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        external_id TEXT UNIQUE,
+        caller_label TEXT,
+        call_type TEXT,
+        prayer_name TEXT,
+        during_silent INTEGER NOT NULL DEFAULT 1,
+        timestamp INTEGER NOT NULL
+      )
+    ''');
+  }
+
   Future<void> _seedPrayers(Database db) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final batch = db.batch();
@@ -94,6 +111,26 @@ class AppDatabase {
       });
     }
     await batch.commit(noResult: true);
+  }
+
+  Future<void> _ensureJumuah(Database db) async {
+    final rows = await db.query(
+      'prayer_schedules',
+      where: 'prayer_name = ?',
+      whereArgs: ["Jumu'ah"],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      final example = PrayerSchedule.exampleDefaults["Jumu'ah"]!;
+      await db.insert('prayer_schedules', {
+        'prayer_name': "Jumu'ah",
+        'hour': example.$1,
+        'minute': example.$2,
+        'enabled': 1,
+        'duration_minutes': 10,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
   }
 
   Future<void> close() async {

@@ -104,7 +104,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                         ),
                         child: const Text(
                           'Times below are examples you set manually. '
-                          'They are not calculated local prayer times.',
+                          'They are not calculated local prayer times.
+'
+                          "Jumu'ah replaces Dhuhr on Fridays only; configure your local mosque time.",
                           style: TextStyle(
                             color: AppColors.mutedGrey,
                             fontSize: 13,

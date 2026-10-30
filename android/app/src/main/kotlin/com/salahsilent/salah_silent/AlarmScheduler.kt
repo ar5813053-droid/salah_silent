@@ -45,6 +45,7 @@ object AlarmScheduler {
         "Asr" to 1003,
         "Maghrib" to 1004,
         "Isha" to 1005,
+        "Jumu'ah" to 1006,
     )
 
     data class PrayerAlarmConfig(
@@ -100,7 +101,7 @@ object AlarmScheduler {
         for (cfg in configs) {
             try {
                 if (cfg.enabled) {
-                    val triggerAt = nextOccurrenceMillis(cfg.hour, cfg.minute)
+                    val triggerAt = nextOccurrenceForPrayer(cfg.prayerName, cfg.hour, cfg.minute)
                     scheduleOne(context, cfg.prayerName, cfg.hour, cfg.minute, triggerAt, exact)
                     scheduled++
                     Log.i(TAG, "Scheduled ${cfg.prayerName} at $triggerAt (exact=$exact)")
@@ -169,7 +170,7 @@ object AlarmScheduler {
         var bestName: String? = null
         var bestAt = Long.MAX_VALUE
         for (cfg in configs) {
-            val at = nextOccurrenceMillis(cfg.hour, cfg.minute)
+            val at = nextOccurrenceForPrayer(cfg.prayerName, cfg.hour, cfg.minute)
             if (at < bestAt) {
                 bestAt = at
                 bestName = cfg.prayerName
@@ -192,14 +193,18 @@ object AlarmScheduler {
             .apply()
 
         val exact = canScheduleExactAlarms(context)
-        val next = nextOccurrenceMillis(hour, minute)
-        // nextOccurrence after fire: if we fire at exact minute, nextOccurrence might still be "now"
-        // force at least +1 day if computed time is not sufficiently in the future
-        val triggerAt = if (next <= System.currentTimeMillis() + 30_000L) {
-            next + 24L * 60 * 60 * 1000
-        } else {
-            next
+        var triggerAt = nextOccurrenceForPrayer(prayerName, hour, minute)
+        if (triggerAt <= System.currentTimeMillis() + 30_000L) {
+            // Advance one day then re-apply weekday rules
+            val cal = Calendar.getInstance()
+            cal.timeInMillis = triggerAt
+            cal.add(Calendar.DAY_OF_YEAR, 1)
+            triggerAt = nextOccurrenceForPrayer(prayerName, hour, minute)
+            if (triggerAt <= System.currentTimeMillis() + 30_000L) {
+                triggerAt = System.currentTimeMillis() + 24L * 60 * 60 * 1000
+            }
         }
+        Log.i(TAG, "Reschedule $prayerName weekday-aware -> $triggerAt")
         scheduleOne(context, prayerName, hour, minute, triggerAt, exact)
         Log.i(TAG, "Rescheduled $prayerName for $triggerAt")
     }
@@ -281,8 +286,17 @@ object AlarmScheduler {
         return PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     }
 
-    /** Next local occurrence of hour:minute that is strictly in the future. */
-    fun nextOccurrenceMillis(hour: Int, minute: Int): Long {
+    /**
+     * Next local occurrence of hour:minute that is strictly in the future.
+     * [weekdayConstraint]: null = any day; Calendar.FRIDAY = only Friday;
+     * negative FRIDAY = any day except Friday (for Dhuhr).
+     */
+    fun nextOccurrenceMillis(
+        hour: Int,
+        minute: Int,
+        weekdayConstraint: Int? = null,
+        excludeWeekday: Int? = null,
+    ): Long {
         val h = hour.coerceIn(0, 23)
         val m = minute.coerceIn(0, 59)
         val cal = Calendar.getInstance(TimeZone.getDefault())
@@ -293,7 +307,25 @@ object AlarmScheduler {
         if (cal.timeInMillis <= System.currentTimeMillis()) {
             cal.add(Calendar.DAY_OF_YEAR, 1)
         }
+        // Search up to 8 days for matching weekday rules
+        repeat(8) {
+            val dow = cal.get(Calendar.DAY_OF_WEEK)
+            val okConstraint = weekdayConstraint == null || dow == weekdayConstraint
+            val okExclude = excludeWeekday == null || dow != excludeWeekday
+            if (okConstraint && okExclude) {
+                return cal.timeInMillis
+            }
+            cal.add(Calendar.DAY_OF_YEAR, 1)
+        }
         return cal.timeInMillis
+    }
+
+    fun nextOccurrenceForPrayer(prayerName: String, hour: Int, minute: Int): Long {
+        return when (prayerName) {
+            "Jumu'ah" -> nextOccurrenceMillis(hour, minute, weekdayConstraint = Calendar.FRIDAY)
+            "Dhuhr" -> nextOccurrenceMillis(hour, minute, excludeWeekday = Calendar.FRIDAY)
+            else -> nextOccurrenceMillis(hour, minute)
+        }
     }
 
     private fun saveConfigs(context: Context, configs: List<PrayerAlarmConfig>) {
