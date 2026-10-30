@@ -88,7 +88,7 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
               color: AppColors.softGold,
               onRefresh: _refresh,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                 children: [
                   if (_error != null)
                     Padding(
@@ -178,7 +178,7 @@ class _PermissionSetupScreenState extends State<PermissionSetupScreen>
                   _sectionTitle('This device'),
                   Card(
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -295,7 +295,7 @@ class _ReadinessBanner extends StatelessWidget {
             'One or more essential permissions are missing. Enable them below.';
     }
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       decoration: BoxDecoration(
         color: AppColors.cardDark,
         borderRadius: BorderRadius.circular(14),

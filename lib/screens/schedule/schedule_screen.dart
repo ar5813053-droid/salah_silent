@@ -93,7 +93,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   color: AppColors.softGold,
                   onRefresh: () => _service.init(),
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),

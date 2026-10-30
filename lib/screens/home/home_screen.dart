@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
+import '../../widgets/glass.dart';
+import '../../services/stats_service.dart';
 import '../../services/native_alarm_service.dart';
 import '../../services/prayer_schedule_service.dart';
 import '../schedule/schedule_screen.dart';
@@ -53,6 +55,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     _eventSub = NativeAlarmService.instance.onAlarmFired.listen((event) {
       final type = event['type'];
+      if (type == 'silent_activated') {
+        final mins = event['durationMinutes'];
+        StatsService.instance.recordSession(mins is int ? mins : 10);
+      } else if (type == 'silent_restored') {
+        StatsService.instance.recordRestore(skipped: false);
+      } else if (type == 'restoration_skipped') {
+        StatsService.instance.recordRestore(skipped: true);
+      }
       if (type == 'silent_activated' ||
           type == 'session_extended' ||
           type == 'silent_restored' ||
@@ -175,10 +185,39 @@ class _HomeScreenState extends State<HomeScreen> {
                 await _refreshSession();
               },
               child: ListView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                 children: [
-                  Text(dateStr, style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.asset(
+                          'assets/branding/salah_silent_logo.png',
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Salah Silent',
+                              style: TextStyle(
+                                color: AppColors.softGold,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 18,
+                              ),
+                            ),
+                            Text(dateStr, style: Theme.of(context).textTheme.bodyMedium),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
 
                   _PermissionBanner(readiness: _readiness),
                   const SizedBox(height: 12),
@@ -195,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -263,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ] else ...[
                     Card(
                       child: Padding(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                         child: next == null
                             ? Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,

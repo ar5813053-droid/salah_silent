@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'core/theme.dart';
+import 'widgets/glass.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/schedule/schedule_screen.dart';
 import 'screens/call_history/call_history_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/splash/splash_screen.dart';
 
-class SalahSilentApp extends StatelessWidget {
+class SalahSilentApp extends StatefulWidget {
   const SalahSilentApp({super.key});
+
+  @override
+  State<SalahSilentApp> createState() => _SalahSilentAppState();
+}
+
+class _SalahSilentAppState extends State<SalahSilentApp> {
+  bool _showSplash = true;
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +23,13 @@ class SalahSilentApp extends StatelessWidget {
       title: 'Salah Silent',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: const MainShell(),
+      home: _showSplash
+          ? SplashScreen(
+              onFinished: () {
+                if (mounted) setState(() => _showSplash = false);
+              },
+            )
+          : const MainShell(),
     );
   }
 }
@@ -29,7 +44,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
+  final _screens = const [
     HomeScreen(),
     ScheduleScreen(),
     CallHistoryScreen(),
@@ -39,37 +54,14 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.schedule_outlined),
-            selectedIcon: Icon(Icons.schedule),
-            label: 'Schedule',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.call_outlined),
-            selectedIcon: Icon(Icons.call),
-            label: 'Calls',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+      bottomNavigationBar: GlassNavigationBar(
+        index: _currentIndex,
+        onChanged: (i) => setState(() => _currentIndex = i),
       ),
     );
   }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
+import '../../services/backup_service.dart';
+import '../../services/stats_service.dart';
+import '../../widgets/glass.dart';
 import '../../services/native_alarm_service.dart';
 import '../../services/prayer_schedule_service.dart';
 import '../../widgets/duration_selector.dart';
@@ -133,7 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
 
           Card(
@@ -341,6 +344,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const _NotificationPrefsCard(),
           const SizedBox(height: 24),
           Text(
+            'Statistics',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.softGold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          const _StatsCard(),
+          const SizedBox(height: 24),
+          Text(
+            'Backup',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.softGold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          const _BackupCard(),
+          const SizedBox(height: 24),
+          Text(
             'About',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.softGold,
@@ -422,6 +443,153 @@ class _NotificationPrefsCardState extends State<_NotificationPrefsCard> {
           tile('sessionRestore', 'Session restore', 'When sound is restored or restore is skipped'),
           const Divider(height: 1, color: AppColors.surface),
           tile('permissionWarning', 'Permission warnings', 'Occasional alerts if access is missing'),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _StatsCard extends StatefulWidget {
+  const _StatsCard();
+  @override
+  State<_StatsCard> createState() => _StatsCardState();
+}
+
+class _StatsCardState extends State<_StatsCard> {
+  Map<String, int> _s = {};
+  @override
+  void initState() {
+    super.initState();
+    StatsService.instance.snapshot().then((v) {
+      if (mounted) setState(() => _s = v);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Column(
+        children: [
+          _row('Silent sessions', '${_s['sessions'] ?? 0}'),
+          _row('Total silent minutes', '${_s['minutes'] ?? 0}'),
+          _row('Successful restores', '${_s['restores'] ?? 0}'),
+          _row('Skipped restores', '${_s['skipped'] ?? 0}'),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String k, String v) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(child: Text(k, style: const TextStyle(color: AppColors.mutedGrey))),
+            Text(v, style: const TextStyle(color: AppColors.softGold, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+}
+
+class _BackupCard extends StatefulWidget {
+  const _BackupCard();
+  @override
+  State<_BackupCard> createState() => _BackupCardState();
+}
+
+class _BackupCardState extends State<_BackupCard> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Export creates a JSON backup of schedules and preferences. '
+            'Paste a backup below to restore (confirmation required).',
+            style: TextStyle(color: AppColors.mutedGrey, fontSize: 12, height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          GlassButton(
+            label: 'Create backup text',
+            icon: Icons.upload_outlined,
+            onPressed: () async {
+              final json = await BackupService.instance.exportJson();
+              if (!context.mounted) return;
+              await showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppColors.cardDark,
+                  title: const Text('Backup JSON'),
+                  content: SingleChildScrollView(
+                    child: SelectableText(json, style: const TextStyle(fontSize: 11)),
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _controller,
+            maxLines: 3,
+            style: const TextStyle(color: AppColors.white, fontSize: 12),
+            decoration: InputDecoration(
+              hintText: 'Paste backup JSON here',
+              hintStyle: const TextStyle(color: AppColors.mutedGrey),
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          GlassButton(
+            label: 'Restore from pasted JSON',
+            icon: Icons.download_outlined,
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppColors.cardDark,
+                  title: const Text('Restore backup?'),
+                  content: const Text(
+                    'This will overwrite current prayer schedules and related preferences.',
+                    style: TextStyle(color: AppColors.mutedGrey),
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: TextButton.styleFrom(foregroundColor: AppColors.softGold),
+                      child: const Text('Restore'),
+                    ),
+                  ],
+                ),
+              );
+              if (ok != true) return;
+              final result = await BackupService.instance.restoreFromJson(_controller.text);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(result == 'ok' ? 'Restore complete — reopen Schedule to refresh' : result),
+                  backgroundColor: AppColors.surface,
+                ),
+              );
+            },
+          ),
         ],
       ),
     );

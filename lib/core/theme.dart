@@ -7,6 +7,19 @@ class AppColors {
   static const Color mutedGrey = Color(0xFF8994A3);
   static const Color cardDark = Color(0xFF1A2536);
   static const Color surface = Color(0xFF162032);
+
+  /// Glass fills (no heavy blur required)
+  static const Color glassFill = Color(0x331A2536);
+  static const Color glassFillStrong = Color(0x99121C2B);
+  static const Color glassBorder = Color(0x40D8B875);
+  static const Color glassHighlight = Color(0x22FFFFFF);
+}
+
+class AppRadii {
+  static const double sm = 12;
+  static const double md = 16;
+  static const double lg = 22;
+  static const double pill = 28;
 }
 
 class AppTheme {
@@ -23,23 +36,18 @@ class AppTheme {
         onSurface: AppColors.white,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.deepNavy,
+        backgroundColor: Colors.transparent,
         foregroundColor: AppColors.white,
         elevation: 0,
         centerTitle: true,
+        scrolledUnderElevation: 0,
       ),
       cardTheme: CardThemeData(
-        color: AppColors.cardDark,
+        color: AppColors.glassFillStrong,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.softGold.withOpacity(0.2),
-        labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          side: const BorderSide(color: AppColors.glassBorder, width: 0.8),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -47,7 +55,7 @@ class AppTheme {
           backgroundColor: AppColors.softGold,
           foregroundColor: AppColors.deepNavy,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadii.sm),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         ),
@@ -62,6 +70,12 @@ class AppTheme {
           fontWeight: FontWeight.w500,
         ),
         bodyMedium: TextStyle(color: AppColors.mutedGrey),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
       ),
     );
   }
